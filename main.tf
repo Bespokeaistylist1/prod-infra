@@ -100,3 +100,32 @@ module "ecs" {
   ai_service_repository_url = module.ecr.ai_service_repository_url
   frontend_repository_url   = module.ecr.frontend_repository_url
 }
+
+# Route 53 Module (conditional based on enable_dns)
+module "route53" {
+  count  = var.enable_dns && var.domain_name != "" ? 1 : 0
+  source = "./modules/route53"
+  
+  project_name        = var.project_name
+  environment         = var.environment
+  domain_name         = var.domain_name
+  create_hosted_zone  = var.create_hosted_zone
+  alb_dns_name        = module.alb.alb_dns_name
+  alb_zone_id         = module.alb.alb_zone_id
+  custom_subdomains   = var.custom_subdomains
+  
+  subdomain_records = [
+    {
+      name = "www"
+      type = "A"
+    },
+    {
+      name = "api"
+      type = "A"
+    },
+    {
+      name = "ai"
+      type = "A"
+    }
+  ]
+}

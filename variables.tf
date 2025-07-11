@@ -35,25 +35,59 @@ variable "private_subnet_cidrs" {
 }
 
 variable "ecs_instance_type" {
-  description = "EC2 instance type for ECS cluster"
+  description = "EC2 instance type for ECS"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "ecs_min_size" {
-  description = "Minimum number of instances in ECS cluster"
+  description = "Minimum number of ECS instances"
   type        = number
   default     = 1
 }
 
 variable "ecs_max_size" {
-  description = "Maximum number of instances in ECS cluster"
+  description = "Maximum number of ECS instances"
   type        = number
   default     = 5
 }
 
 variable "ecs_desired_size" {
-  description = "Desired number of instances in ECS cluster"
+  description = "Desired number of ECS instances"
   type        = number
   default     = 2
+}
+
+variable "availability_zones" {
+  description = "List of availability zones"
+  type        = list(string)
+  default     = ["ap-south-1a", "ap-south-1b"]
+}
+
+# DNS Configuration
+variable "domain_name" {
+  description = "Domain name to point to the ALB (e.g., example.com)"
+  type        = string
+  default     = ""
+}
+
+variable "create_hosted_zone" {
+  description = "Whether to create a Route 53 hosted zone for the domain"
+  type        = bool
+  default     = true
+}
+
+variable "enable_dns" {
+  description = "Whether to enable DNS configuration"
+  type        = bool
+  default     = false
+}
+
+variable "custom_subdomains" {
+  description = "List of custom subdomain records to create"
+  type = list(object({
+    name = string
+    type = string
+  }))
+  default = []
 }
