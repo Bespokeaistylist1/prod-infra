@@ -67,3 +67,36 @@ variable "alb_target_group_frontend_arn" {
   description = "ARN of the frontend target group"
   type        = string
 }
+
+# ECR Repository URLs
+variable "backend_repository_url" {
+  description = "URL of the backend ECR repository"
+  type        = string
+}
+
+variable "ai_service_repository_url" {
+  description = "URL of the AI service ECR repository"
+  type        = string
+}
+
+variable "frontend_repository_url" {
+  description = "URL of the frontend ECR repository"
+  type        = string
+}
+
+variable "instance_profile_name" {
+  description = "Name of the ECS instance profile"
+  type        = string
+}
+
+variable "backend_secrets_arn" {
+  description = "ARN of the backend secrets in AWS Secrets Manager"
+  type        = string
+  default     = ""
+}
+
+variable "cloudwatch_log_kms_key_id" {
+  description = "KMS key ID for CloudWatch log encryption"
+  type        = string
+  default     = null
+}

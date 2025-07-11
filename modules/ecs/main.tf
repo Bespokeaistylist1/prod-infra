@@ -150,6 +150,16 @@ resource "aws_cloudwatch_log_group" "frontend" {
   }
 }
 
+resource "aws_cloudwatch_log_group" "redis" {
+  name              = "/ecs/${var.project_name}-${var.environment}-redis"
+  retention_in_days = 7
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-redis-logs"
+    Environment = var.environment
+  }
+}
+
 # ECS Task Definitions
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.project_name}-${var.environment}-backend"
@@ -161,7 +171,7 @@ resource "aws_ecs_task_definition" "backend" {
   container_definitions = jsonencode([
     {
       name      = "backend"
-      image     = "nginx:latest"  # Replace with your backend image
+      image     = "${var.backend_repository_url}:latest"  # Use ECR repository
       cpu       = 512
       memory    = 1024
       essential = true
@@ -169,7 +179,7 @@ resource "aws_ecs_task_definition" "backend" {
       portMappings = [
         {
           containerPort = 5001
-          hostPort      = 0
+          hostPort      = 5001
           protocol      = "tcp"
         }
       ]
@@ -182,116 +192,116 @@ resource "aws_ecs_task_definition" "backend" {
           awslogs-stream-prefix = "ecs"
         }
       }
-
-      environment =[
-              {
+      environment = []
+      secrets =[
+        {
                   "name": "MONGODB_URI",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:MONGODB_URI::"
-              },
-              {
+        },
+        {
                   "name": "AWS_ACCESS_KEY_ID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_ACCESS_KEY_ID::"
-              },
-              {
+        },
+        {
                   "name": "AWS_SECRET_ACCESS_KEY",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_SECRET_ACCESS_KEY::"
-              },
-              {
+        },
+        {
                 "name":"AWS_REGION",
                 "valueFrom":"arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_REGION::"
-              },
-              {
+        },
+        {
                   "name": "AWS_S3_BUCKET",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_S3_BUCKET::"
-              },
-              {
+        },
+        {
                   "name": "SENDGRID_SENDER_EMAIL",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:SENDGRID_SENDER_EMAIL::"
-              },
-              {
+        },
+        {
                   "name": "SENDGRID_API_KEY",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:SENDGRID_API_KEY::"
-              },
-              {
+        },
+        {
                   "name": "TWILIO_ACCOUNT_SID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_ACCOUNT_SID::"
-              },
-              {
+        },
+        {
                   "name": "TWILIO_AUTH_TOKEN",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_AUTH_TOKEN::"
-              },
-              {
+        },
+        {
                 "name":"TWILIO_MESSAGING_SERVICE_SID",
                 "valueFrom":"arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_MESSAGING_SERVICE_SID::"  
-              },
-              {
+        },
+        {
                   "name": "GOOGLE_CLIENT_ID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_CLIENT_ID::"
-              },
-              {
+        },
+        {
                   "name": "GOOGLE_CLIENT_SECRET",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_CLIENT_SECRET::"
-              },
-              {
+        },
+        {
                   "name": "FACEBOOK_APP_ID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:FACEBOOK_APP_ID::"
-              },
-              {
+        },
+        {
                   "name": "FACEBOOK_APP_SECRET",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:FACEBOOK_APP_SECRET::"
-              },
-              {
+        },
+        {
                   "name": "APPLE_TEAM_ID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_TEAM_ID::"
-              },
-              {
+        },
+        {
                   "name": "APPLE_CLIENT_ID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_CLIENT_ID::"
-              },
-              {
+        },
+        {
                   "name": "APPLE_KEY_ID",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_KEY_ID::"
-              },
-              {
+        },
+        {
                   "name": "APPLE_PRIVATE_KEY",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_PRIVATE_KEY::"
-              },
-              {
+        },
+        {
                   "name": "REDIS_HOST_QUEUE",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_HOST_QUEUE::"
-              },
-              {
+        },
+        {
                   "name": "REDIS_PORT_QUEUE",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_PORT_QUEUE::"
-              },
-              {
+        },
+        {
                   "name": "REDIS_HOST_WORKER",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_HOST_WORKER::"
-              },
-              {
+        },
+        {
                   "name": "REDIS_PORT_WORKER",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_PORT_WORKER::"
-              },
-              {
+        },
+        {
                   "name": "AI_STYLIST_BASE_URL",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AI_STYLIST_BASE_URL::"
-              },
-              {
+        },
+        {
                   "name": "GOOGLE_MAPS_API_KEY",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_MAPS_API_KEY::"
-              },
-              {
+        },
+        {
                   "name": "LOCATION_DETAILS_API_URL",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:LOCATION_DETAILS_API_URL::"
-              },
-              {
+        },
+        {
                   "name": "LOCATION_DETAILS_API_KEY",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:LOCATION_DETAILS_API_KEY::"
-              },
-              {
+        },
+        {
                   "name": "QUEUE_NAME",
                   "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:QUEUE_NAME::"
-              }
+        }
           ]
 
       healthCheck = {
@@ -320,7 +330,7 @@ resource "aws_ecs_task_definition" "ai_service" {
   container_definitions = jsonencode([
     {
       name      = "ai-service"
-      image     = "python:3.9-slim"  # Replace with your AI service image
+      image     = "${var.ai_service_repository_url}:latest"  # Use ECR repository
       cpu       = 1024
       memory    = 2048
       essential = true
@@ -379,15 +389,15 @@ resource "aws_ecs_task_definition" "frontend" {
   container_definitions = jsonencode([
     {
       name      = "frontend"
-      image     = "nginx:latest"  # Replace with your frontend image
+      image     = "${var.frontend_repository_url}:latest"  # Use ECR repository
       cpu       = 512
       memory    = 1024
       essential = true
 
       portMappings = [
         {
-          containerPort = 80
-          hostPort      = 0
+          containerPort = 3000
+          hostPort      = 3000
           protocol      = "tcp"
         }
       ]
@@ -402,18 +412,11 @@ resource "aws_ecs_task_definition" "frontend" {
       }
 
       environment = [
-        {
-          name  = "NODE_ENV"
-          value = "production"
-        },
-        {
-          name  = "PORT"
-          value = "3001"
-        }
+    
       ]
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:80/ || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:3000/ || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3
@@ -424,6 +427,77 @@ resource "aws_ecs_task_definition" "frontend" {
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-frontend-task"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecs_task_definition" "redis" {
+  family                   = "${var.project_name}-${var.environment}-redis"
+  requires_compatibilities = ["EC2"]
+  network_mode             = "bridge"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "redis"
+      image     = "redis:7-alpine"
+      cpu       = 256
+      memory    = 512
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 6379
+          hostPort      = 6379
+          protocol      = "tcp"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.redis.name
+          awslogs-region        = "ap-south-1"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+
+      command = [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "allkeys-lru"
+      ]
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "redis-cli ping || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 30
+      }
+
+      mountPoints = [
+        {
+          sourceVolume  = "redis-data"
+          containerPath = "/data"
+          readOnly      = false
+        }
+      ]
+    }
+  ])
+
+  volume {
+    name = "redis-data"
+    host_path = "/opt/redis-data"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-redis-task"
     Environment = var.environment
   }
 }
@@ -493,13 +567,32 @@ resource "aws_ecs_service" "frontend" {
   load_balancer {
     target_group_arn = var.alb_target_group_frontend_arn
     container_name   = "frontend"
-    container_port   = 80
+    container_port   = 3000
   }
 
   depends_on = [aws_ecs_cluster_capacity_providers.main]
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-frontend-service"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecs_service" "redis" {
+  name            = "${var.project_name}-${var.environment}-redis"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.redis.arn
+  desired_count   = 1
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.main.name
+    weight            = 100
+  }
+
+  depends_on = [aws_ecs_cluster_capacity_providers.main]
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-redis-service"
     Environment = var.environment
   }
 }

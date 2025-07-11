@@ -88,9 +88,15 @@ module "ecs" {
   
   task_execution_role_arn = module.iam.ecs_task_execution_role_arn
   task_role_arn          = module.iam.ecs_task_role_arn
+  instance_profile_name   = module.iam.ecs_instance_profile_name
   
   # Load balancer configuration
   alb_target_group_backend_arn    = module.alb.backend_target_group_arn
   alb_target_group_ai_service_arn = module.alb.ai_service_target_group_arn
   alb_target_group_frontend_arn   = module.alb.frontend_target_group_arn
+  
+  # ECR repository URLs
+  backend_repository_url    = module.ecr.backend_repository_url
+  ai_service_repository_url = module.ecr.ai_service_repository_url
+  frontend_repository_url   = module.ecr.frontend_repository_url
 }

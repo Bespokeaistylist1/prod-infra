@@ -57,8 +57,8 @@ resource "aws_security_group" "ecs" {
 
   ingress {
     description     = "AI Service"
-    from_port       = 8000
-    to_port         = 8000
+    from_port       = 5000
+    to_port         = 5000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -88,34 +88,6 @@ resource "aws_security_group" "ecs" {
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-ecs-sg"
-    Environment = var.environment
-  }
-}
-
-# RDS Security Group (for future database needs)
-resource "aws_security_group" "rds" {
-  name        = "${var.project_name}-${var.environment}-rds-sg"
-  description = "Security group for RDS database"
-  vpc_id      = var.vpc_id
-
-  ingress {
-    description     = "MySQL/Aurora"
-    from_port       = 3306
-    to_port         = 3306
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs.id]
-  }
-
-  ingress {
-    description     = "PostgreSQL"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [aws_security_group.ecs.id]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-rds-sg"
     Environment = var.environment
   }
 }
