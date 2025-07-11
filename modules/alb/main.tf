@@ -17,7 +17,7 @@ resource "aws_lb" "main" {
 # Target Group for Backend Service
 resource "aws_lb_target_group" "backend" {
   name     = "${var.project_name}-${var.environment}-be-tg"
-  port     = 3000
+  port     = 5001
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
@@ -67,7 +67,7 @@ resource "aws_lb_target_group" "ai_service" {
 # Target Group for Frontend Service
 resource "aws_lb_target_group" "frontend" {
   name     = "${var.project_name}-${var.environment}-fe-tg"
-  port     = 3001
+  port     = 80
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
