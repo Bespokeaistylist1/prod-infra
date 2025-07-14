@@ -9,6 +9,89 @@ data "aws_ami" "ecs_optimized" {
   }
 }
 
+# EFS Security Group
+resource "aws_security_group" "efs" {
+  name        = "${var.project_name}-${var.environment}-efs-sg"
+  description = "Security group for EFS file system"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    description     = "NFS from ECS"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [var.security_group_id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-efs-sg"
+    Environment = var.environment
+  }
+}
+
+# EFS File System for Qdrant
+resource "aws_efs_file_system" "qdrant" {
+  creation_token   = "${var.project_name}-${var.environment}-qdrant-storage"
+  performance_mode = "generalPurpose"
+  throughput_mode  = "provisioned"
+  provisioned_throughput_in_mibps = 20
+
+  encrypted = true
+
+  lifecycle_policy {
+    transition_to_ia = "AFTER_30_DAYS"
+  }
+
+  lifecycle_policy {
+    transition_to_primary_storage_class = "AFTER_1_ACCESS"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-efs"
+    Environment = var.environment
+    Service     = "qdrant"
+  }
+}
+
+# EFS Mount Targets
+resource "aws_efs_mount_target" "qdrant" {
+  count           = length(var.private_subnet_ids)
+  file_system_id  = aws_efs_file_system.qdrant.id
+  subnet_id       = var.private_subnet_ids[count.index]
+  security_groups = [aws_security_group.efs.id]
+}
+
+# EFS Access Point for Qdrant
+resource "aws_efs_access_point" "qdrant" {
+  file_system_id = aws_efs_file_system.qdrant.id
+
+  posix_user {
+    gid = 1000
+    uid = 1000
+  }
+
+  root_directory {
+    path = "/qdrant"
+    creation_info {
+      owner_gid   = 1000
+      owner_uid   = 1000
+      permissions = "0755"
+    }
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-access-point"
+    Environment = var.environment
+  }
+}
+
 # ECS Cluster
 resource "aws_ecs_cluster" "main" {
   name = "${var.project_name}-${var.environment}-cluster"
@@ -248,7 +331,7 @@ resource "aws_cloudwatch_log_group" "qdrant" {
 resource "aws_ecs_task_definition" "backend" {
   family                   = "${var.project_name}-${var.environment}-backend"
   requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
+  network_mode             = "awsvpc"
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
@@ -263,7 +346,6 @@ resource "aws_ecs_task_definition" "backend" {
       portMappings = [
         {
           containerPort = 5001
-          hostPort      = 5001
           protocol      = "tcp"
         }
       ]
@@ -406,7 +488,7 @@ resource "aws_ecs_task_definition" "backend" {
 resource "aws_ecs_task_definition" "ai_service" {
   family                   = "${var.project_name}-${var.environment}-ai-service"
   requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
+  network_mode             = "awsvpc"
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
@@ -421,7 +503,6 @@ resource "aws_ecs_task_definition" "ai_service" {
       portMappings = [
         {
           containerPort = 8000
-          hostPort      = 8000
           protocol      = "tcp"
         }
       ]
@@ -472,50 +553,50 @@ resource "aws_ecs_task_definition" "ai_service" {
           name = "NOTIFICATION_TIMEOUT_SECONDS"
           value = "30"
         },
+        {
+          name = "BACKEND_WEBHOOK_URL"
+          value = "http://backend.${var.project_name}-${var.environment}.local:5001/api/wardrobes/save-generated-image"
+        }
       ]
 
-      "secrets": [
-
+      secrets = [
         {
-          "name": "GEMINI_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/gemini-api-key:GEMINI_API_KEY::"
+          name = "GEMINI_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/gemini-api-key:GEMINI_API_KEY::"
         },
         {
-          "name": "ANTHROPIC_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/anthropic-api-key:ANTHROPIC_API_KEY::"
+          name = "ANTHROPIC_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/anthropic-api-key:ANTHROPIC_API_KEY::"
         },
         {
-          "name": "DEEPSEEK_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/deepseek-api-key:DEEPSEEK_API_KEY::"
+          name = "DEEPSEEK_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/deepseek-api-key:DEEPSEEK_API_KEY::"
         },
         {
-          "name": "TOGETHERAI_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/togetherai-api-key:TOGETHERAI_API_KEY::"
+          name = "TOGETHERAI_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/togetherai-api-key:TOGETHERAI_API_KEY::"
         },
         {
-          "name": "B_F_L_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/bfl-api-key:B_F_L_API_KEY::"
+          name = "B_F_L_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/bfl-api-key:B_F_L_API_KEY::"
         },
         {
-          "name": "FASHNAI_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/fashnai-api-key:FASHNAI_API_KEY::"
+          name = "FASHNAI_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/fashnai-api-key:FASHNAI_API_KEY::"
         },
         {
-          "name": "WEBHOOK_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/webhook-secret:WEBHOOK_SECRET::"
+          name = "WEBHOOK_SECRET"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/webhook-secret:WEBHOOK_SECRET::"
         },
         {
-          "name": "QDRANT_API_KEY",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/qdrant-api-key:QDRANT_API_KEY::"
-        },
-        { "name": "WEBHOOK_BASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/webhook-base-url:WEBHOOK_BASE_URL::"
+          name = "QDRANT_API_KEY"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/qdrant-api-key:QDRANT_API_KEY::"
         },
         {
-          "name": "BACKEND_WEBHOOK_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/backend-webhook-url:BACKEND_WEBHOOK_URL::"
+          name = "WEBHOOK_BASE_URL"
+          valueFrom = "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/webhook-base-url:WEBHOOK_BASE_URL::"
         }
-      ],
+      ]
 
       healthCheck = {
         command     = ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -536,7 +617,7 @@ resource "aws_ecs_task_definition" "ai_service" {
 resource "aws_ecs_task_definition" "qdrant" {
   family                   = "${var.project_name}-${var.environment}-qdrant"
   requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
+  network_mode             = "awsvpc"
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
@@ -551,7 +632,6 @@ resource "aws_ecs_task_definition" "qdrant" {
       portMappings = [
         {
           containerPort = 6333
-          hostPort      = 6333
           protocol      = "tcp"
         }
       ]
@@ -593,8 +673,12 @@ resource "aws_ecs_task_definition" "qdrant" {
   volume {
     name = "qdrant-storage"
     efs_volume_configuration {
-      file_system_id     = "fs-0a2b490ee8d09efec"
+      file_system_id     = aws_efs_file_system.qdrant.id
       transit_encryption = "ENABLED"
+      authorization_config {
+        access_point_id = aws_efs_access_point.qdrant.id
+        iam             = "ENABLED"
+      }
     }
   }
 
@@ -607,7 +691,7 @@ resource "aws_ecs_task_definition" "qdrant" {
 resource "aws_ecs_task_definition" "frontend" {
   family                   = "${var.project_name}-${var.environment}-frontend"
   requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
+  network_mode             = "awsvpc"
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
@@ -622,7 +706,6 @@ resource "aws_ecs_task_definition" "frontend" {
       portMappings = [
         {
           containerPort = 3000
-          hostPort      = 3000
           protocol      = "tcp"
         }
       ]
@@ -659,7 +742,7 @@ resource "aws_ecs_task_definition" "frontend" {
 resource "aws_ecs_task_definition" "redis" {
   family                   = "${var.project_name}-${var.environment}-redis"
   requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
+  network_mode             = "awsvpc"
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
@@ -674,7 +757,6 @@ resource "aws_ecs_task_definition" "redis" {
       portMappings = [
         {
           containerPort = 6379
-          hostPort      = 6379
           protocol      = "tcp"
         }
       ]
@@ -734,6 +816,12 @@ resource "aws_ecs_service" "backend" {
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = 2
 
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = false
+  }
+
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.main.name
     weight            = 100
@@ -759,6 +847,12 @@ resource "aws_ecs_service" "ai_service" {
   task_definition = aws_ecs_task_definition.ai_service.arn
   desired_count   = 1
 
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = false
+  }
+
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.main.name
     weight            = 100
@@ -781,6 +875,12 @@ resource "aws_ecs_service" "frontend" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
   desired_count   = 2
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = false
+  }
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.main.name
@@ -807,6 +907,12 @@ resource "aws_ecs_service" "redis" {
   task_definition = aws_ecs_task_definition.redis.arn
   desired_count   = 1
 
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = false
+  }
+
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.main.name
     weight            = 100
@@ -829,6 +935,12 @@ resource "aws_ecs_service" "qdrant" {
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.qdrant.arn
   desired_count   = 1
+
+  network_configuration {
+    subnets          = var.private_subnet_ids
+    security_groups  = [var.security_group_id]
+    assign_public_ip = false
+  }
 
   capacity_provider_strategy {
     capacity_provider = aws_ecs_capacity_provider.main.name
