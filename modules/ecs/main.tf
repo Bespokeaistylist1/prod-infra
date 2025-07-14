@@ -24,6 +24,64 @@ resource "aws_ecs_cluster" "main" {
   }
 }
 
+# Service Discovery Namespace
+resource "aws_service_discovery_private_dns_namespace" "main" {
+  name        = "${var.project_name}-${var.environment}.local"
+  description = "Service discovery namespace for ${var.project_name}-${var.environment}"
+  vpc         = var.vpc_id
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-service-discovery"
+    Environment = var.environment
+  }
+}
+
+# Service Discovery Service for Qdrant
+resource "aws_service_discovery_service" "qdrant" {
+  name = "qdrant"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_grace_period_seconds = 30
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-discovery"
+    Environment = var.environment
+  }
+}
+
+# Service Discovery Service for Redis
+resource "aws_service_discovery_service" "redis" {
+  name = "redis"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_grace_period_seconds = 30
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-redis-discovery"
+    Environment = var.environment
+  }
+}
+
 # ECS Capacity Provider
 resource "aws_ecs_capacity_provider" "main" {
   name = "${var.project_name}-${var.environment}-capacity-provider"
@@ -180,7 +238,7 @@ resource "aws_ecs_task_definition" "backend" {
   container_definitions = jsonencode([
     {
       name      = "backend"
-      image     = "${var.backend_repository_url}:latest"  # Use ECR repository
+      image     = "${var.backend_repository_url}:latest"
       cpu       = 512
       memory    = 1024
       essential = true
@@ -201,117 +259,116 @@ resource "aws_ecs_task_definition" "backend" {
           awslogs-stream-prefix = "ecs"
         }
       }
-      environment = []
-      secrets =[
+      
+      environment = [
         {
-                  "name": "MONGODB_URI",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:MONGODB_URI::"
+          name  = "REDIS_HOST"
+          value = "redis.${var.project_name}-${var.environment}.local"
         },
         {
-                  "name": "AWS_ACCESS_KEY_ID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_ACCESS_KEY_ID::"
+          name  = "REDIS_PORT"
+          value = "6379"
         },
         {
-                  "name": "AWS_SECRET_ACCESS_KEY",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_SECRET_ACCESS_KEY::"
-        },
-        {
-                "name":"AWS_REGION",
-                "valueFrom":"arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_REGION::"
-        },
-        {
-                  "name": "AWS_S3_BUCKET",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_S3_BUCKET::"
-        },
-        {
-                  "name": "SENDGRID_SENDER_EMAIL",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:SENDGRID_SENDER_EMAIL::"
-        },
-        {
-                  "name": "SENDGRID_API_KEY",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:SENDGRID_API_KEY::"
-        },
-        {
-                  "name": "TWILIO_ACCOUNT_SID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_ACCOUNT_SID::"
-        },
-        {
-                  "name": "TWILIO_AUTH_TOKEN",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_AUTH_TOKEN::"
-        },
-        {
-                "name":"TWILIO_MESSAGING_SERVICE_SID",
-                "valueFrom":"arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_MESSAGING_SERVICE_SID::"  
-        },
-        {
-                  "name": "GOOGLE_CLIENT_ID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_CLIENT_ID::"
-        },
-        {
-                  "name": "GOOGLE_CLIENT_SECRET",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_CLIENT_SECRET::"
-        },
-        {
-                  "name": "FACEBOOK_APP_ID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:FACEBOOK_APP_ID::"
-        },
-        {
-                  "name": "FACEBOOK_APP_SECRET",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:FACEBOOK_APP_SECRET::"
-        },
-        {
-                  "name": "APPLE_TEAM_ID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_TEAM_ID::"
-        },
-        {
-                  "name": "APPLE_CLIENT_ID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_CLIENT_ID::"
-        },
-        {
-                  "name": "APPLE_KEY_ID",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_KEY_ID::"
-        },
-        {
-                  "name": "APPLE_PRIVATE_KEY",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_PRIVATE_KEY::"
-        },
-        {
-                  "name": "REDIS_HOST_QUEUE",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_HOST_QUEUE::"
-        },
-        {
-                  "name": "REDIS_PORT_QUEUE",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_PORT_QUEUE::"
-        },
-        {
-                  "name": "REDIS_HOST_WORKER",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_HOST_WORKER::"
-        },
-        {
-                  "name": "REDIS_PORT_WORKER",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:REDIS_PORT_WORKER::"
-        },
-        {
-                  "name": "AI_STYLIST_BASE_URL",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AI_STYLIST_BASE_URL::"
-        },
-        {
-                  "name": "GOOGLE_MAPS_API_KEY",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_MAPS_API_KEY::"
-        },
-        {
-                  "name": "LOCATION_DETAILS_API_URL",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:LOCATION_DETAILS_API_URL::"
-        },
-        {
-                  "name": "LOCATION_DETAILS_API_KEY",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:LOCATION_DETAILS_API_KEY::"
-        },
-        {
-                  "name": "QUEUE_NAME",
-                  "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:QUEUE_NAME::"
+          name  = "REDIS_URL"
+          value = "redis://redis.${var.project_name}-${var.environment}.local:6379"
         }
-          ]
+      ]
+      
+      secrets = [
+        {
+          "name": "MONGODB_URI",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:MONGODB_URI::"
+        },
+        {
+          "name": "AWS_ACCESS_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_ACCESS_KEY_ID::"
+        },
+        {
+          "name": "AWS_SECRET_ACCESS_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_SECRET_ACCESS_KEY::"
+        },
+        {
+          "name": "AWS_REGION",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_REGION::"
+        },
+        {
+          "name": "AWS_S3_BUCKET",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AWS_S3_BUCKET::"
+        },
+        {
+          "name": "SENDGRID_SENDER_EMAIL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:SENDGRID_SENDER_EMAIL::"
+        },
+        {
+          "name": "SENDGRID_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:SENDGRID_API_KEY::"
+        },
+        {
+          "name": "TWILIO_ACCOUNT_SID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_ACCOUNT_SID::"
+        },
+        {
+          "name": "TWILIO_AUTH_TOKEN",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_AUTH_TOKEN::"
+        },
+        {
+          "name": "TWILIO_MESSAGING_SERVICE_SID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:TWILIO_MESSAGING_SERVICE_SID::"
+        },
+        {
+          "name": "GOOGLE_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_CLIENT_ID::"
+        },
+        {
+          "name": "GOOGLE_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_CLIENT_SECRET::"
+        },
+        {
+          "name": "FACEBOOK_APP_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:FACEBOOK_APP_ID::"
+        },
+        {
+          "name": "FACEBOOK_APP_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:FACEBOOK_APP_SECRET::"
+        },
+        {
+          "name": "APPLE_TEAM_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_TEAM_ID::"
+        },
+        {
+          "name": "APPLE_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_CLIENT_ID::"
+        },
+        {
+          "name": "APPLE_KEY_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_KEY_ID::"
+        },
+        {
+          "name": "APPLE_PRIVATE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_PRIVATE_KEY::"
+        },
+        {
+          "name": "AI_STYLIST_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AI_STYLIST_BASE_URL::"
+        },
+        {
+          "name": "GOOGLE_MAPS_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:GOOGLE_MAPS_API_KEY::"
+        },
+        {
+          "name": "LOCATION_DETAILS_API_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:LOCATION_DETAILS_API_URL::"
+        },
+        {
+          "name": "LOCATION_DETAILS_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:LOCATION_DETAILS_API_KEY::"
+        },
+        {
+          "name": "QUEUE_NAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:QUEUE_NAME::"
+        }
+      ]
 
       healthCheck = {
         command     = ["CMD-SHELL", "curl -f http://localhost:5001/api || exit 1"]
@@ -339,7 +396,7 @@ resource "aws_ecs_task_definition" "ai_service" {
   container_definitions = jsonencode([
     {
       name      = "ai-service"
-      image     = "${var.ai_service_repository_url}:latest"  # Use ECR repository
+      image     = "${var.ai_service_repository_url}:latest"
       cpu       = 1024
       memory    = 2048
       essential = true
@@ -369,8 +426,79 @@ resource "aws_ecs_task_definition" "ai_service" {
         {
           name  = "PORT"
           value = "8000"
-        }
+        },
+        {
+          name  = "QDRANT_PORT"
+          value = "6333"
+        },
+        {
+          name  = "QDRANT_HOST"
+          value = "http://qdrant.${var.project_name}-${var.environment}.local:6333"
+        },
+        {
+          name = "USE_ENHANCED_IMAGE_ANALYSIS"
+          value = "true"
+        },
+        { 
+          name = "USE_ENHANCED_VECTOR_DB"
+          value = "true"
+        },
+        {
+          name = "USE_ENHANCED_CHAT"
+          value = "true"
+        },
+        {
+          name = "NOTIFICATION_RETRY_ATTEMPTS"
+          value = "3"
+        },
+        {
+          name = "NOTIFICATION_TIMEOUT_SECONDS"
+          value = "30"
+        },
       ]
+
+      "secrets": [
+
+        {
+          "name": "GEMINI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/gemini-api-key:GEMINI_API_KEY::"
+        },
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/anthropic-api-key:ANTHROPIC_API_KEY::"
+        },
+        {
+          "name": "DEEPSEEK_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/deepseek-api-key:DEEPSEEK_API_KEY::"
+        },
+        {
+          "name": "TOGETHERAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/togetherai-api-key:TOGETHERAI_API_KEY::"
+        },
+        {
+          "name": "B_F_L_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/bfl-api-key:B_F_L_API_KEY::"
+        },
+        {
+          "name": "FASHNAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/fashnai-api-key:FASHNAI_API_KEY::"
+        },
+        {
+          "name": "WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/webhook-secret:WEBHOOK_SECRET::"
+        },
+        {
+          "name": "QDRANT_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/qdrant-api-key:QDRANT_API_KEY::"
+        },
+        { "name": "WEBHOOK_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/webhook-base-url:WEBHOOK_BASE_URL::"
+        },
+        {
+          "name": "BACKEND_WEBHOOK_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/backend-webhook-url:BACKEND_WEBHOOK_URL::"
+        }
+      ],
 
       healthCheck = {
         command     = ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -384,6 +512,77 @@ resource "aws_ecs_task_definition" "ai_service" {
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-ai-service-task"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecs_task_definition" "qdrant" {
+  family                   = "${var.project_name}-${var.environment}-qdrant"
+  requires_compatibilities = ["EC2"]
+  network_mode             = "bridge"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "qdrant"
+      image     = "qdrant/qdrant:v0.9.0"
+      cpu       = 512
+      memory    = 1024
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 6333
+          hostPort      = 6333
+          protocol      = "tcp"
+        }
+      ]
+
+      secrets = [
+        {
+          name  = "QDRANT__SERVICE__API_KEY"
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/qdrant-api-key:QDRANT_API_KEY::
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.qdrant.name
+          awslogs-region        = "ap-south-1"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+
+      mountPoints = [
+        {
+          sourceVolume  = "qdrant-storage"
+          containerPath = "/qdrant/storage"
+          readOnly      = false
+        }
+      ]
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60
+      }
+    }
+  ])
+
+  volume {
+    name = "qdrant-storage"
+    efs_volume_configuration {
+      file_system_id     = "fs-0a2b490ee8d09efec"
+      transit_encryption = "ENABLED"
+    }
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-task"
     Environment = var.environment
   }
 }
@@ -511,77 +710,6 @@ resource "aws_ecs_task_definition" "redis" {
   }
 }
 
-resource "aws_ecs_task_definition" "qdrant" {
-  family                   = "${var.project_name}-${var.environment}-qdrant"
-  requires_compatibilities = ["EC2"]
-  network_mode             = "bridge"
-  execution_role_arn       = var.task_execution_role_arn
-  task_role_arn            = var.task_role_arn
-
-  container_definitions = jsonencode([
-    {
-      name      = "qdrant"
-      image     = "qdrant/qdrant:v0.9.0"
-      cpu       = 256
-      memory    = 512
-      essential = true
-
-      portMappings = [
-        {
-          containerPort = 6333
-          hostPort      = 6333
-          protocol      = "tcp"
-        }
-      ]
-
-      environment = [
-        {
-          name  = "QDRANT__SERVICE__API_KEY"
-          value = "f40ca0bb3a035e7302a14ad07c663773cc1470fd7993a34380e827e79198d103"
-        }
-      ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.qdrant.name
-          awslogs-region        = "ap-south-1"
-          awslogs-stream-prefix = "ecs"
-        }
-      }
-
-      mountPoints = [
-        {
-          sourceVolume  = "qdrant-storage"
-          containerPath = "/qdrant/storage"
-          readOnly      = false
-        }
-      ]
-
-      healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
-      }
-    }
-  ])
-
-  volume {
-    name = "qdrant-storage"
-    efs_volume_configuration {
-      file_system_id     = "fs-0a2b490ee8d09efec"
-      transit_encryption = "ENABLED"
-    }
-  }
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-qdrant-task"
-    Environment = var.environment
-  }
-}
-
 # ECS Services
 resource "aws_ecs_service" "backend" {
   name            = "${var.project_name}-${var.environment}-backend"
@@ -669,6 +797,10 @@ resource "aws_ecs_service" "redis" {
     weight            = 100
   }
 
+  service_registries {
+    registry_arn = aws_service_discovery_service.redis.arn
+  }
+
   depends_on = [aws_ecs_cluster_capacity_providers.main]
 
   tags = {
@@ -688,10 +820,14 @@ resource "aws_ecs_service" "qdrant" {
     weight            = 100
   }
 
+  service_registries {
+    registry_arn = aws_service_discovery_service.qdrant.arn
+  }
+
   load_balancer {
-    target_group_arn = var.alb_target_group_ai_service_arn
-    container_name   = "ai-service"
-    container_port   = 8000
+    target_group_arn = var.alb_target_group_qdrant_arn
+    container_name   = "qdrant"
+    container_port   = 6333
   }
 
   depends_on = [aws_ecs_cluster_capacity_providers.main]

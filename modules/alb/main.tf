@@ -39,32 +39,6 @@ resource "aws_lb_target_group" "backend" {
   }
 }
 
-# Target Group for AI Service
-resource "aws_lb_target_group" "ai_service" {
-  name     = "${var.project_name}-${var.environment}-ai-tg"
-  port     = 8000
-  protocol = "HTTP"
-  vpc_id   = var.vpc_id
-
-  health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = "/health"
-    port                = "traffic-port"
-    protocol            = "HTTP"
-    timeout             = 5
-    unhealthy_threshold = 2
-  }
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-ai-service-tg"
-    Environment = var.environment
-  }
-}
-
-
 resource "aws_lb_target_group" "qdrant" {
   name     = "${var.project_name}-${var.environment}-qdrant-tg"
   port     = 6333
@@ -179,8 +153,8 @@ resource "aws_lb_listener_rule" "backend_http" {
   }
 }
 
-# Listener Rule for AI Service (HTTP)
-resource "aws_lb_listener_rule" "ai_service_http" {
+# Listener Rule for Qdrant Dashboard (HTTP)
+resource "aws_lb_listener_rule" "qdrant_http" {
   count = var.enable_https && var.enable_http_redirect ? 0 : 1
   
   listener_arn = aws_lb_listener.http.arn
@@ -188,12 +162,12 @@ resource "aws_lb_listener_rule" "ai_service_http" {
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.ai_service.arn
+    target_group_arn = aws_lb_target_group.qdrant.arn
   }
 
   condition {
     path_pattern {
-      values = ["/ai/*"]
+      values = ["/qdrant/*"]
     }
   }
 }
@@ -217,8 +191,8 @@ resource "aws_lb_listener_rule" "backend_https" {
   }
 }
 
-# Listener Rule for AI Service (HTTPS)
-resource "aws_lb_listener_rule" "ai_service_https" {
+# Listener Rule for Qdrant Dashboard (HTTPS)
+resource "aws_lb_listener_rule" "qdrant_https" {
   count = var.enable_https ? 1 : 0
   
   listener_arn = aws_lb_listener.https[0].arn
@@ -226,12 +200,12 @@ resource "aws_lb_listener_rule" "ai_service_https" {
 
   action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.ai_service.arn
+    target_group_arn = aws_lb_target_group.qdrant.arn
   }
 
   condition {
     path_pattern {
-      values = ["/ai/*"]
+      values = ["/qdrant/*"]
     }
   }
 }

@@ -68,6 +68,11 @@ variable "alb_target_group_frontend_arn" {
   type        = string
 }
 
+variable "alb_target_group_qdrant_arn" {
+  description = "ARN of the Qdrant target group"
+  type        = string
+}
+
 # ECR Repository URLs
 variable "backend_repository_url" {
   description = "URL of the backend ECR repository"

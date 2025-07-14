@@ -18,11 +18,6 @@ output "backend_target_group_arn" {
   value       = aws_lb_target_group.backend.arn
 }
 
-output "ai_service_target_group_arn" {
-  description = "ARN of the AI service target group"
-  value       = aws_lb_target_group.ai_service.arn
-}
-
 output "qdrant_target_group_arn" {
   description = "ARN of the Qdrant target group"
   value       = aws_lb_target_group.qdrant.arn
