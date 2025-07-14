@@ -69,6 +69,11 @@ module "alb" {
   vpc_id       = module.vpc.vpc_id
   public_subnet_ids = module.vpc.public_subnet_ids
   security_group_id = module.security_groups.alb_security_group_id
+  
+  # SSL/HTTPS Configuration
+  certificate_arn        = var.certificate_arn
+  enable_https          = var.enable_https
+  enable_http_redirect  = var.enable_http_redirect
 }
 
 # ECS Module
@@ -99,33 +104,4 @@ module "ecs" {
   backend_repository_url    = module.ecr.backend_repository_url
   ai_service_repository_url = module.ecr.ai_service_repository_url
   frontend_repository_url   = module.ecr.frontend_repository_url
-}
-
-# Route 53 Module (conditional based on enable_dns)
-module "route53" {
-  count  = var.enable_dns && var.domain_name != "" ? 1 : 0
-  source = "./modules/route53"
-  
-  project_name        = var.project_name
-  environment         = var.environment
-  domain_name         = var.domain_name
-  create_hosted_zone  = var.create_hosted_zone
-  alb_dns_name        = module.alb.alb_dns_name
-  alb_zone_id         = module.alb.alb_zone_id
-  custom_subdomains   = var.custom_subdomains
-  
-  subdomain_records = [
-    {
-      name = "www"
-      type = "A"
-    },
-    {
-      name = "api"
-      type = "A"
-    },
-    {
-      name = "ai"
-      type = "A"
-    }
-  ]
 }

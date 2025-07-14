@@ -159,6 +159,15 @@ resource "aws_cloudwatch_log_group" "redis" {
     Environment = var.environment
   }
 }
+resource "aws_cloudwatch_log_group" "qdrant" {
+  name              = "/ecs/${var.project_name}-${var.environment}-qdrant"
+  retention_in_days = 7
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-logs"
+    Environment = var.environment
+  }
+}
 
 # ECS Task Definitions
 resource "aws_ecs_task_definition" "backend" {
@@ -337,8 +346,8 @@ resource "aws_ecs_task_definition" "ai_service" {
 
       portMappings = [
         {
-          containerPort = 5000
-          hostPort      = 0
+          containerPort = 8000
+          hostPort      = 8000
           protocol      = "tcp"
         }
       ]
@@ -359,12 +368,12 @@ resource "aws_ecs_task_definition" "ai_service" {
         },
         {
           name  = "PORT"
-          value = "5000"
+          value = "8000"
         }
       ]
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:5000/health || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3
@@ -502,6 +511,77 @@ resource "aws_ecs_task_definition" "redis" {
   }
 }
 
+resource "aws_ecs_task_definition" "qdrant" {
+  family                   = "${var.project_name}-${var.environment}-qdrant"
+  requires_compatibilities = ["EC2"]
+  network_mode             = "bridge"
+  execution_role_arn       = var.task_execution_role_arn
+  task_role_arn            = var.task_role_arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "qdrant"
+      image     = "qdrant/qdrant:v0.9.0"
+      cpu       = 256
+      memory    = 512
+      essential = true
+
+      portMappings = [
+        {
+          containerPort = 6333
+          hostPort      = 6333
+          protocol      = "tcp"
+        }
+      ]
+
+      environment = [
+        {
+          name  = "QDRANT__SERVICE__API_KEY"
+          value = "f40ca0bb3a035e7302a14ad07c663773cc1470fd7993a34380e827e79198d103"
+        }
+      ]
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.qdrant.name
+          awslogs-region        = "ap-south-1"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+
+      mountPoints = [
+        {
+          sourceVolume  = "qdrant-storage"
+          containerPath = "/qdrant/storage"
+          readOnly      = false
+        }
+      ]
+
+      healthCheck = {
+        command     = ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 60
+      }
+    }
+  ])
+
+  volume {
+    name = "qdrant-storage"
+    efs_volume_configuration {
+      file_system_id     = "fs-0a2b490ee8d09efec"
+      transit_encryption = "ENABLED"
+    }
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-task"
+    Environment = var.environment
+  }
+}
+
 # ECS Services
 resource "aws_ecs_service" "backend" {
   name            = "${var.project_name}-${var.environment}-backend"
@@ -542,7 +622,7 @@ resource "aws_ecs_service" "ai_service" {
   load_balancer {
     target_group_arn = var.alb_target_group_ai_service_arn
     container_name   = "ai-service"
-    container_port   = 5000
+    container_port   = 8000
   }
 
   depends_on = [aws_ecs_cluster_capacity_providers.main]
@@ -593,6 +673,31 @@ resource "aws_ecs_service" "redis" {
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-redis-service"
+    Environment = var.environment
+  }
+}
+
+resource "aws_ecs_service" "qdrant" {
+  name            = "${var.project_name}-${var.environment}-qdrant"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.qdrant.arn
+  desired_count   = 1
+
+  capacity_provider_strategy {
+    capacity_provider = aws_ecs_capacity_provider.main.name
+    weight            = 100
+  }
+
+  load_balancer {
+    target_group_arn = var.alb_target_group_ai_service_arn
+    container_name   = "ai-service"
+    container_port   = 8000
+  }
+
+  depends_on = [aws_ecs_cluster_capacity_providers.main]
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-service"
     Environment = var.environment
   }
 }

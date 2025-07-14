@@ -42,7 +42,7 @@ resource "aws_lb_target_group" "backend" {
 # Target Group for AI Service
 resource "aws_lb_target_group" "ai_service" {
   name     = "${var.project_name}-${var.environment}-ai-tg"
-  port     = 5000
+  port     = 8000
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
@@ -60,6 +60,31 @@ resource "aws_lb_target_group" "ai_service" {
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-ai-service-tg"
+    Environment = var.environment
+  }
+}
+
+
+resource "aws_lb_target_group" "qdrant" {
+  name     = "${var.project_name}-${var.environment}-qdrant-tg"
+  port     = 6333
+  protocol = "HTTP"
+  vpc_id   = var.vpc_id
+
+  health_check {
+    enabled             = true
+    healthy_threshold   = 2
+    interval            = 30
+    matcher             = "200"
+    path                = "/health"
+    port                = "traffic-port"
+    protocol            = "HTTP"
+    timeout             = 5
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-qdrant-tg"
     Environment = var.environment
   }
 }
@@ -90,10 +115,44 @@ resource "aws_lb_target_group" "frontend" {
 }
 
 # Listener for HTTP traffic
-resource "aws_lb_listener" "main" {
+resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
   port              = "80"
   protocol          = "HTTP"
+
+  # If HTTPS is enabled and redirect is enabled, redirect to HTTPS
+  # Otherwise, forward to frontend
+  dynamic "default_action" {
+    for_each = var.enable_https && var.enable_http_redirect ? [1] : []
+    content {
+      type = "redirect"
+
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = var.enable_https && var.enable_http_redirect ? [] : [1]
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.frontend.arn
+    }
+  }
+}
+
+# Listener for HTTPS traffic
+resource "aws_lb_listener" "https" {
+  count = var.enable_https ? 1 : 0
+  
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS-1-2-2017-01"
+  certificate_arn   = var.certificate_arn
 
   default_action {
     type             = "forward"
@@ -101,9 +160,11 @@ resource "aws_lb_listener" "main" {
   }
 }
 
-# Listener Rule for Backend API
-resource "aws_lb_listener_rule" "backend" {
-  listener_arn = aws_lb_listener.main.arn
+# Listener Rule for Backend API (HTTP)
+resource "aws_lb_listener_rule" "backend_http" {
+  count = var.enable_https && var.enable_http_redirect ? 0 : 1
+  
+  listener_arn = aws_lb_listener.http.arn
   priority     = 100
 
   action {
@@ -118,9 +179,49 @@ resource "aws_lb_listener_rule" "backend" {
   }
 }
 
-# Listener Rule for AI Service
-resource "aws_lb_listener_rule" "ai_service" {
-  listener_arn = aws_lb_listener.main.arn
+# Listener Rule for AI Service (HTTP)
+resource "aws_lb_listener_rule" "ai_service_http" {
+  count = var.enable_https && var.enable_http_redirect ? 0 : 1
+  
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 200
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.ai_service.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/ai/*"]
+    }
+  }
+}
+
+# Listener Rule for Backend API (HTTPS)
+resource "aws_lb_listener_rule" "backend_https" {
+  count = var.enable_https ? 1 : 0
+  
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
+  }
+}
+
+# Listener Rule for AI Service (HTTPS)
+resource "aws_lb_listener_rule" "ai_service_https" {
+  count = var.enable_https ? 1 : 0
+  
+  listener_arn = aws_lb_listener.https[0].arn
   priority     = 200
 
   action {

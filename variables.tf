@@ -91,3 +91,22 @@ variable "custom_subdomains" {
   }))
   default = []
 }
+
+# SSL/HTTPS Configuration
+variable "certificate_arn" {
+  description = "ARN of the SSL certificate for HTTPS (from AWS Certificate Manager)"
+  type        = string
+  default     = ""
+}
+
+variable "enable_https" {
+  description = "Whether to enable HTTPS listener on port 443"
+  type        = bool
+  default     = false
+}
+
+variable "enable_http_redirect" {
+  description = "Whether to redirect HTTP traffic to HTTPS"
+  type        = bool
+  default     = false
+}

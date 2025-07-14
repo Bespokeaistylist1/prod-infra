@@ -74,23 +74,3 @@ output "domain_name" {
   description = "Configured domain name"
   value       = var.enable_dns ? var.domain_name : null
 }
-
-output "hosted_zone_id" {
-  description = "Route 53 hosted zone ID"
-  value       = var.enable_dns && length(module.route53) > 0 ? module.route53[0].hosted_zone_id : null
-}
-
-output "name_servers" {
-  description = "Route 53 name servers for the domain"
-  value       = var.enable_dns && length(module.route53) > 0 ? module.route53[0].hosted_zone_name_servers : null
-}
-
-output "domain_urls" {
-  description = "URLs for your domain"
-  value = var.enable_dns && var.domain_name != "" ? {
-    root     = "http://${var.domain_name}"
-    www      = "http://www.${var.domain_name}"
-    api      = "http://api.${var.domain_name}"
-    ai       = "http://ai.${var.domain_name}"
-  } : null
-}
