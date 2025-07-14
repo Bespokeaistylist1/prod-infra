@@ -51,10 +51,29 @@ resource "aws_service_discovery_service" "qdrant" {
     routing_policy = "MULTIVALUE"
   }
 
-  health_check_grace_period_seconds = 30
-
   tags = {
     Name        = "${var.project_name}-${var.environment}-qdrant-discovery"
+    Environment = var.environment
+  }
+}
+
+# Service Discovery Service for AI Service
+resource "aws_service_discovery_service" "ai_service" {
+  name = "ai-service"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.main.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-ai-service-discovery"
     Environment = var.environment
   }
 }
@@ -73,8 +92,6 @@ resource "aws_service_discovery_service" "redis" {
 
     routing_policy = "MULTIVALUE"
   }
-
-  health_check_grace_period_seconds = 30
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-redis-discovery"
@@ -272,6 +289,10 @@ resource "aws_ecs_task_definition" "backend" {
         {
           name  = "REDIS_URL"
           value = "redis://redis.${var.project_name}-${var.environment}.local:6379"
+        },
+        {
+          name  = "AI_STYLIST_BASE_URL"
+          value = "http://ai-service.${var.project_name}-${var.environment}.local:8000"
         }
       ]
       
@@ -347,10 +368,6 @@ resource "aws_ecs_task_definition" "backend" {
         {
           "name": "APPLE_PRIVATE_KEY",
           "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:APPLE_PRIVATE_KEY::"
-        },
-        {
-          "name": "AI_STYLIST_BASE_URL",
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-ZhvqW8:AI_STYLIST_BASE_URL::"
         },
         {
           "name": "GOOGLE_MAPS_API_KEY",
@@ -542,7 +559,7 @@ resource "aws_ecs_task_definition" "qdrant" {
       secrets = [
         {
           name  = "QDRANT__SERVICE__API_KEY"
-          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/qdrant-api-key:QDRANT_API_KEY::
+          "valueFrom": "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-RGDgrw:ai-stylist/qdrant-api-key:QDRANT_API_KEY::"
         }
       ]
 
@@ -747,10 +764,8 @@ resource "aws_ecs_service" "ai_service" {
     weight            = 100
   }
 
-  load_balancer {
-    target_group_arn = var.alb_target_group_ai_service_arn
-    container_name   = "ai-service"
-    container_port   = 8000
+  service_registries {
+    registry_arn = aws_service_discovery_service.ai_service.arn
   }
 
   depends_on = [aws_ecs_cluster_capacity_providers.main]

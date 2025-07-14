@@ -56,19 +56,19 @@ resource "aws_security_group" "ecs" {
   }
 
   ingress {
-    description     = "AI Service"
-    from_port       = 8000
-    to_port         = 8000
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  ingress {
     description     = "Frontend"
     from_port       = 3000
     to_port         = 3000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
+    description = "AI Service Internal"
+    from_port   = 8000
+    to_port     = 8000
+    protocol    = "tcp"
+    self        = true
   }
 
   ingress {

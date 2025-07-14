@@ -58,11 +58,6 @@ variable "alb_target_group_backend_arn" {
   type        = string
 }
 
-variable "alb_target_group_ai_service_arn" {
-  description = "ARN of the AI service target group"
-  type        = string
-}
-
 variable "alb_target_group_frontend_arn" {
   description = "ARN of the frontend target group"
   type        = string

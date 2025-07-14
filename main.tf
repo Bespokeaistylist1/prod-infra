@@ -97,7 +97,6 @@ module "ecs" {
   
   # Load balancer configuration
   alb_target_group_backend_arn    = module.alb.backend_target_group_arn
-  alb_target_group_ai_service_arn = module.alb.ai_service_target_group_arn
   alb_target_group_frontend_arn   = module.alb.frontend_target_group_arn
   alb_target_group_qdrant_arn     = module.alb.qdrant_target_group_arn
   
