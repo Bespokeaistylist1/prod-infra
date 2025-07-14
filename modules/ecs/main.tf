@@ -661,7 +661,7 @@ resource "aws_ecs_task_definition" "qdrant" {
       ]
 
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:6333/readyz || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
         interval    = 30
         timeout     = 5
         retries     = 3

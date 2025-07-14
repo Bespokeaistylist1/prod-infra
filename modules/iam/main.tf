@@ -95,6 +95,28 @@ resource "aws_iam_role_policy" "ecs_task_execution_ecr_policy" {
   })
 }
 
+# Secrets Manager permissions for task execution role
+resource "aws_iam_role_policy" "ecs_task_execution_secrets_policy" {
+  name = "${var.project_name}-${var.environment}-ecs-task-execution-secrets-policy"
+  role = aws_iam_role.ecs_task_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-backend-secrets-*",
+          "arn:aws:secretsmanager:ap-south-1:546158667784:secret:prod-ai-secrets-*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "ecs_instance_role_policy" {
   role       = aws_iam_role.ecs_instance_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"

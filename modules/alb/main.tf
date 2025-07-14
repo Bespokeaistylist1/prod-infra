@@ -27,7 +27,7 @@ resource "aws_lb_target_group" "backend" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/health"
+    path                = "/api"
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5
@@ -56,7 +56,7 @@ resource "aws_lb_target_group" "qdrant" {
     healthy_threshold   = 2
     interval            = 30
     matcher             = "200"
-    path                = "/health"
+    path                = "/healthz"
     port                = "traffic-port"
     protocol            = "HTTP"
     timeout             = 5

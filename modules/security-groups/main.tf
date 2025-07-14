@@ -72,6 +72,30 @@ resource "aws_security_group" "ecs" {
   }
 
   ingress {
+    description = "Redis Internal"
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description = "Qdrant Internal"
+    from_port   = 6333
+    to_port     = 6333
+    protocol    = "tcp"
+    self        = true
+  }
+
+  ingress {
+    description     = "Qdrant from ALB"
+    from_port       = 6333
+    to_port         = 6333
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb.id]
+  }
+
+  ingress {
     description = "SSH"
     from_port   = 22
     to_port     = 22
