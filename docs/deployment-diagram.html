@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS ECS Infrastructure - Interactive Network Diagram</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            flex-shrink: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.8em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+        
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #f0f2f5;
+        }
+        
+        #canvas {
+            position: relative;
+            width: 3000px;
+            height: 2000px;
+            cursor: grab;
+            transform-origin: 0 0;
+        }
+        
+        #canvas:active {
+            cursor: grabbing;
+        }
+        
+        .connections-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+        
+        .node {
+            position: absolute;
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 11px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            cursor: move;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            min-width: 100px;
+            min-height: 60px;
+            border: 2px solid transparent;
+            z-index: 2;
+        }
+        
+        .node:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+            z-index: 10;
+        }
+        
+        .node.dragging {
+            transform: scale(1.05);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+            z-index: 100;
+        }
+        
+        .node-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+        
+        .node-details {
+            font-size: 9px;
+            opacity: 0.8;
+            line-height: 1.2;
+        }
+        
+        /* AWS Component Styles */
+        .vpc {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 2px solid #2196f3;
+            color: #1565c0;
+            width: 180px;
+            height: 80px;
+        }
+        
+        .subnet {
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border: 2px solid #ff9800;
+            color: #e65100;
+            width: 140px;
+            height: 70px;
+        }
+        
+        .public-subnet {
+            background: linear-gradient(135deg, #e1f5fe, #b3e5fc);
+            border: 2px solid #03a9f4;
+            color: #01579b;
+        }
+        
+        .alb {
+            background: linear-gradient(135deg, #fff9c4, #fff59d);
+            border: 2px solid #fbc02d;
+            color: #f57f17;
+            width: 160px;
+            height: 60px;
+        }
+        
+        .igw {
+            background: linear-gradient(135deg, #c8e6c9, #a5d6a7);
+            border: 2px solid #4caf50;
+            color: #1b5e20;
+            width: 120px;
+            height: 50px;
+        }
+        
+        .nat {
+            background: linear-gradient(135deg, #dcedc8, #c5e1a5);
+            border: 2px solid #8bc34a;
+            color: #33691e;
+            width: 100px;
+            height: 50px;
+        }
+        
+        .ecs-cluster {
+            background: linear-gradient(135deg, #ffe0b2, #ffcc80);
+            border: 2px solid #ff9800;
+            color: #e65100;
+            width: 140px;
+            height: 60px;
+        }
+        
+        .ecs-service {
+            background: linear-gradient(135deg, #e1f5fe, #b3e5fc);
+            border: 2px solid #03a9f4;
+            color: #01579b;
+            width: 120px;
+            height: 80px;
+        }
+        
+        .backend {
+            background: linear-gradient(135deg, #e8f5e8, #c8e6c9);
+            border: 2px solid #4caf50;
+            color: #1b5e20;
+        }
+        
+        .frontend {
+            background: linear-gradient(135deg, #fce4ec, #f8bbd9);
+            border: 2px solid #e91e63;
+            color: #880e4f;
+        }
+        
+        .ai-service {
+            background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+            border: 2px solid #9c27b0;
+            color: #4a148c;
+        }
+        
+        .database {
+            background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+            border: 2px solid #ff9800;
+            color: #e65100;
+            width: 110px;
+            height: 70px;
+        }
+        
+        .redis {
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            border: 2px solid #f44336;
+            color: #b71c1c;
+        }
+        
+        .qdrant {
+            background: linear-gradient(135deg, #e8eaf6, #c5cae9);
+            border: 2px solid #3f51b5;
+            color: #1a237e;
+        }
+        
+        .ecr {
+            background: linear-gradient(135deg, #e0f2f1, #b2dfdb);
+            border: 2px solid #009688;
+            color: #004d40;
+            width: 100px;
+            height: 60px;
+        }
+        
+        .iam {
+            background: linear-gradient(135deg, #fff8e1, #ffecb3);
+            border: 2px solid #ffc107;
+            color: #ff8f00;
+            width: 100px;
+            height: 60px;
+        }
+        
+        .cloudwatch {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border: 2px solid #2196f3;
+            color: #0d47a1;
+            width: 100px;
+            height: 60px;
+        }
+        
+        .efs {
+            background: linear-gradient(135deg, #f1f8e9, #dcedc8);
+            border: 2px solid #689f38;
+            color: #33691e;
+            width: 100px;
+            height: 60px;
+        }
+        
+        .external {
+            background: linear-gradient(135deg, #e0e0e0, #bdbdbd);
+            border: 2px solid #757575;
+            color: #424242;
+            width: 120px;
+            height: 60px;
+        }
+        
+        /* Connection line styles */
+        .connection-line {
+            stroke-width: 2;
+            fill: none;
+            opacity: 0.7;
+        }
+        
+        .connection-line.network {
+            stroke: #4caf50;
+            stroke-width: 2;
+        }
+        
+        .connection-line.service {
+            stroke: #ff9800;
+            stroke-width: 2;
+        }
+        
+        .connection-line.data-flow {
+            stroke: #2196f3;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+        }
+        
+        .connection-line.security {
+            stroke: #f44336;
+            stroke-width: 2;
+            stroke-dasharray: 3,3;
+        }
+        
+        .controls {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 200px;
+        }
+        
+        .control-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 12px;
+            margin: 2px;
+            cursor: pointer;
+            font-size: 11px;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        .control-btn:hover {
+            background: #2980b9;
+        }
+        
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            max-width: 300px;
+            z-index: 1000;
+        }
+        
+        .info-title {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .info-text {
+            font-size: 12px;
+            color: #7f8c8d;
+            line-height: 1.4;
+        }
+        
+        .zoom-controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 5px;
+            z-index: 1000;
+        }
+        
+        .zoom-btn {
+            background: #34495e;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .zoom-btn:hover {
+            background: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 AWS ECS Infrastructure - Interactive Network Graph</h1>
+            <p>Drag any component to move • Connections remain intact • Explore the deployment architecture</p>
+        </div>
+        
+        <div class="canvas-wrapper" id="canvasWrapper">
+            <div id="canvas">
+                <!-- SVG for connection lines -->
+                <svg class="connections-svg" id="connectionsSvg">
+                    <defs>
+                        <marker id="arrowhead-network" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="#4caf50" />
+                        </marker>
+                        <marker id="arrowhead-service" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="#ff9800" />
+                        </marker>
+                        <marker id="arrowhead-data" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="#2196f3" />
+                        </marker>
+                        <marker id="arrowhead-security" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+                            <polygon points="0 0, 8 3, 0 6" fill="#f44336" />
+                        </marker>
+                    </defs>
+                </svg>
+                
+                <!-- Internet -->
+                <div class="node external" data-id="internet" style="top: 50px; left: 400px;">
+                    <div class="node-title">🌐 Internet</div>
+                    <div class="node-details">Public Traffic<br>HTTP/HTTPS</div>
+                </div>
+                
+                <!-- Internet Gateway -->
+                <div class="node igw" data-id="igw" style="top: 150px; left: 420px;">
+                    <div class="node-title">🚪 Internet Gateway</div>
+                    <div class="node-details">VPC Internet Access</div>
+                </div>
+                
+                <!-- VPC -->
+                <div class="node vpc" data-id="vpc" style="top: 250px; left: 350px;">
+                    <div class="node-title">🏢 VPC</div>
+                    <div class="node-details">10.0.0.0/16<br>Mumbai (ap-south-1)<br>Multi-AZ Setup</div>
+                </div>
+                
+                <!-- Public Subnets -->
+                <div class="node subnet public-subnet" data-id="public-subnet-1" style="top: 350px; left: 200px;">
+                    <div class="node-title">🌐 Public Subnet AZ-1</div>
+                    <div class="node-details">10.0.1.0/24<br>ap-south-1a</div>
+                </div>
+                
+                <div class="node subnet public-subnet" data-id="public-subnet-2" style="top: 350px; left: 500px;">
+                    <div class="node-title">🌐 Public Subnet AZ-2</div>
+                    <div class="node-details">10.0.2.0/24<br>ap-south-1b</div>
+                </div>
+                
+                <!-- Application Load Balancer -->
+                <div class="node alb" data-id="alb" style="top: 450px; left: 330px;">
+                    <div class="node-title">⚖️ Application Load Balancer</div>
+                    <div class="node-details">Internet-facing<br>HTTP & HTTPS<br>Health Checks</div>
+                </div>
+                
+                <!-- NAT Gateways -->
+                <div class="node nat" data-id="nat-1" style="top: 450px; left: 150px;">
+                    <div class="node-title">🚪 NAT Gateway 1</div>
+                    <div class="node-details">Outbound Internet<br>AZ-1</div>
+                </div>
+                
+                <div class="node nat" data-id="nat-2" style="top: 450px; left: 550px;">
+                    <div class="node-title">🚪 NAT Gateway 2</div>
+                    <div class="node-details">Outbound Internet<br>AZ-2</div>
+                </div>
+                
+                <!-- Private Subnets -->
+                <div class="node subnet" data-id="private-subnet-1" style="top: 550px; left: 150px;">
+                    <div class="node-title">🔒 Private Subnet AZ-1</div>
+                    <div class="node-details">10.0.3.0/24<br>ap-south-1a</div>
+                </div>
+                
+                <div class="node subnet" data-id="private-subnet-2" style="top: 550px; left: 500px;">
+                    <div class="node-title">🔒 Private Subnet AZ-2</div>
+                    <div class="node-details">10.0.4.0/24<br>ap-south-1b</div>
+                </div>
+                
+                <!-- ECS Cluster -->
+                <div class="node ecs-cluster" data-id="ecs-cluster" style="top: 650px; left: 300px;">
+                    <div class="node-title">� ECS Cluster</div>
+                    <div class="node-details">EC2 Launch Type<br>Auto Scaling<br>t3.small instances</div>
+                </div>
+                
+                <!-- ECS Services -->
+                <div class="node ecs-service backend" data-id="backend" style="top: 750px; left: 100px;">
+                    <div class="node-title">🖥️ Backend API</div>
+                    <div class="node-details">Node.js/Express<br>Port 5001<br>2 instances<br>/api/* routes</div>
+                </div>
+                
+                <div class="node ecs-service ai-service" data-id="ai-service" style="top: 750px; left: 250px;">
+                    <div class="node-title">🤖 AI Service</div>
+                    <div class="node-details">Python Flask<br>Port 8000<br>1 instance<br>ML Processing</div>
+                </div>
+                
+                <div class="node ecs-service frontend" data-id="frontend" style="top: 750px; left: 400px;">
+                    <div class="node-title">🌐 Frontend</div>
+                    <div class="node-details">React/Next.js<br>Port 3000<br>2 instances<br>/ (default)</div>
+                </div>
+                
+                <!-- Databases -->
+                <div class="node database redis" data-id="redis" style="top: 880px; left: 150px;">
+                    <div class="node-title">📊 Redis Cache</div>
+                    <div class="node-details">In-memory store<br>Port 6379<br>Session management</div>
+                </div>
+                
+                <div class="node database qdrant" data-id="qdrant" style="top: 880px; left: 300px;">
+                    <div class="node-title">🔍 Qdrant Vector DB</div>
+                    <div class="node-details">Vector search<br>Port 6333<br>AI embeddings</div>
+                </div>
+                
+                <!-- Storage -->
+                <div class="node efs" data-id="efs" style="top: 880px; left: 450px;">
+                    <div class="node-title">💾 EFS Storage</div>
+                    <div class="node-details">Persistent storage<br>Qdrant data<br>Multi-AZ</div>
+                </div>
+                
+                <!-- Container Registry -->
+                <div class="node ecr" data-id="ecr" style="top: 150px; left: 700px;">
+                    <div class="node-title">📦 ECR</div>
+                    <div class="node-details">Container Registry<br>Docker Images<br>Vulnerability Scanning</div>
+                </div>
+                
+                <!-- IAM -->
+                <div class="node iam" data-id="iam" style="top: 250px; left: 750px;">
+                    <div class="node-title">🔐 IAM Roles</div>
+                    <div class="node-details">Task Execution<br>Instance Roles<br>Permissions</div>
+                </div>
+                
+                <!-- CloudWatch -->
+                <div class="node cloudwatch" data-id="cloudwatch" style="top: 350px; left: 720px;">
+                    <div class="node-title">📊 CloudWatch</div>
+                    <div class="node-details">Logs & Monitoring<br>7-day retention<br>Container Insights</div>
+                </div>
+                
+                <!-- External MongoDB -->
+                <div class="node external" data-id="mongodb" style="top: 750px; left: 600px;">
+                    <div class="node-title">🍃 MongoDB Atlas</div>
+                    <div class="node-details">External Database<br>Document Storage<br>Production Data</div>
+                </div>
+                
+                <!-- External AI APIs -->
+                <div class="node external" data-id="ai-apis" style="top: 650px; left: 650px;">
+                    <div class="node-title">🧠 AI APIs</div>
+                    <div class="node-details">Gemini, Anthropic<br>DeepSeek, Together<br>External ML Services</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button class="control-btn" onclick="resetLayout()">↻ Reset Layout</button>
+            <button class="control-btn" onclick="toggleConnections()">👁️ Toggle Lines</button>
+            <button class="control-btn" onclick="autoArrange()">🎯 Auto Arrange</button>
+            <button class="control-btn" onclick="showAllConnections()">🔗 Show All</button>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-title">🎮 Interactive Controls</div>
+            <div class="info-text">
+                • <strong>Drag components</strong> to move them around<br>
+                • <strong>Pan canvas</strong> by dragging empty space<br>
+                • <strong>Zoom</strong> with mouse wheel or buttons<br>
+                • <strong>Click components</strong> for details<br>
+                • Connections automatically update!
+            </div>
+        </div>
+        
+        <div class="zoom-controls">
+            <button class="zoom-btn" onclick="zoomIn()">+</button>
+            <button class="zoom-btn" onclick="zoomOut()">−</button>
+            <button class="zoom-btn" onclick="resetZoom()">⌂</button>
+        </div>
+    </div>
+
+    <script>
+        // Connection definitions with types
+        const connections = [
+            // Network infrastructure
+            { from: 'internet', to: 'igw', type: 'network' },
+            { from: 'igw', to: 'vpc', type: 'network' },
+            { from: 'vpc', to: 'public-subnet-1', type: 'network' },
+            { from: 'vpc', to: 'public-subnet-2', type: 'network' },
+            { from: 'vpc', to: 'private-subnet-1', type: 'network' },
+            { from: 'vpc', to: 'private-subnet-2', type: 'network' },
+            
+            // Load balancer connections
+            { from: 'public-subnet-1', to: 'alb', type: 'network' },
+            { from: 'public-subnet-2', to: 'alb', type: 'network' },
+            { from: 'igw', to: 'alb', type: 'network' },
+            
+            // NAT Gateway connections
+            { from: 'public-subnet-1', to: 'nat-1', type: 'network' },
+            { from: 'public-subnet-2', to: 'nat-2', type: 'network' },
+            { from: 'nat-1', to: 'private-subnet-1', type: 'network' },
+            { from: 'nat-2', to: 'private-subnet-2', type: 'network' },
+            
+            // ECS cluster connections
+            { from: 'private-subnet-1', to: 'ecs-cluster', type: 'service' },
+            { from: 'private-subnet-2', to: 'ecs-cluster', type: 'service' },
+            { from: 'ecs-cluster', to: 'backend', type: 'service' },
+            { from: 'ecs-cluster', to: 'ai-service', type: 'service' },
+            { from: 'ecs-cluster', to: 'frontend', type: 'service' },
+            
+            // Load balancer to services
+            { from: 'alb', to: 'backend', type: 'service' },
+            { from: 'alb', to: 'frontend', type: 'service' },
+            { from: 'alb', to: 'qdrant', type: 'service' },
+            
+            // Data flow connections
+            { from: 'backend', to: 'redis', type: 'data-flow' },
+            { from: 'backend', to: 'mongodb', type: 'data-flow' },
+            { from: 'backend', to: 'ai-service', type: 'data-flow' },
+            { from: 'ai-service', to: 'qdrant', type: 'data-flow' },
+            { from: 'ai-service', to: 'ai-apis', type: 'data-flow' },
+            { from: 'qdrant', to: 'efs', type: 'data-flow' },
+            
+            // Infrastructure connections
+            { from: 'ecr', to: 'ecs-cluster', type: 'service' },
+            { from: 'iam', to: 'ecs-cluster', type: 'security' },
+            { from: 'cloudwatch', to: 'ecs-cluster', type: 'service' },
+            { from: 'cloudwatch', to: 'backend', type: 'service' },
+            { from: 'cloudwatch', to: 'ai-service', type: 'service' },
+            { from: 'cloudwatch', to: 'frontend', type: 'service' }
+        ];
+
+        let draggedElement = null;
+        let offset = { x: 0, y: 0 };
+        let showConnections = true;
+        let isDraggingCanvas = false;
+        let canvasOffset = { x: 0, y: 0 };
+        let scale = 1;
+
+        // Component information
+        const componentInfo = {
+            'internet': { title: 'Internet', details: 'Global internet access point for incoming user traffic via HTTP/HTTPS protocols.' },
+            'igw': { title: 'Internet Gateway', details: 'Provides internet connectivity to the VPC, enabling bidirectional internet access.' },
+            'vpc': { title: 'Virtual Private Cloud', details: 'Isolated network environment (10.0.0.0/16) spanning multiple availability zones in Mumbai region.' },
+            'alb': { title: 'Application Load Balancer', details: 'Layer 7 load balancer routing traffic: / → Frontend, /api/* → Backend, /qdrant/* → Qdrant.' },
+            'backend': { title: 'Backend Service', details: 'Node.js/Express API server handling business logic, authentication, and data processing.' },
+            'ai-service': { title: 'AI Service', details: 'Python Flask service for machine learning operations, image analysis, and AI processing.' },
+            'frontend': { title: 'Frontend Service', details: 'React/Next.js web application serving the user interface and client-side functionality.' },
+            'redis': { title: 'Redis Cache', details: 'In-memory data store for session management, caching, and real-time data operations.' },
+            'qdrant': { title: 'Qdrant Vector Database', details: 'Specialized vector database for AI embeddings, similarity search, and ML data storage.' },
+            'ecs-cluster': { title: 'ECS Cluster', details: 'Container orchestration platform managing all services with auto-scaling capabilities.' },
+            'ecr': { title: 'ECR Repositories', details: 'Container registry storing Docker images with vulnerability scanning and lifecycle policies.' },
+            'iam': { title: 'IAM Roles', details: 'Identity and access management providing secure permissions for all AWS services.' },
+            'cloudwatch': { title: 'CloudWatch Logs', details: 'Centralized logging and monitoring with real-time metrics and alerting capabilities.' },
+            'efs': { title: 'EFS Storage', details: 'Elastic File System providing persistent, scalable storage for Qdrant database files.' },
+            'mongodb': { title: 'MongoDB Atlas', details: 'External managed database service for production data storage and management.' },
+            'ai-apis': { title: 'External AI APIs', details: 'Third-party AI services including Gemini, Anthropic, DeepSeek, and Together AI.' }
+        };
+
+        function initializeSystem() {
+            const canvas = document.getElementById('canvas');
+            const canvasWrapper = document.getElementById('canvasWrapper');
+            
+            // Initialize dragging for nodes
+            initializeNodeDragging();
+            
+            // Initialize canvas panning
+            initializeCanvasPanning();
+            
+            // Initialize zoom controls
+            initializeZoom();
+            
+            // Initial connection drawing
+            updateConnections();
+            
+            // Add click handlers for info display
+            initializeNodeInfo();
+        }
+
+        function initializeNodeDragging() {
+            const nodes = document.querySelectorAll('.node');
+            
+            nodes.forEach(node => {
+                node.addEventListener('mousedown', startNodeDrag);
+                node.addEventListener('touchstart', startNodeDrag);
+            });
+            
+            document.addEventListener('mousemove', dragNode);
+            document.addEventListener('touchmove', dragNode);
+            document.addEventListener('mouseup', endNodeDrag);
+            document.addEventListener('touchend', endNodeDrag);
+        }
+
+        function startNodeDrag(e) {
+            e.stopPropagation();
+            draggedElement = e.target.closest('.node');
+            draggedElement.classList.add('dragging');
+            
+            const rect = draggedElement.getBoundingClientRect();
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            if (e.type === 'touchstart') {
+                const touch = e.touches[0];
+                offset.x = (touch.clientX - rect.left) / scale;
+                offset.y = (touch.clientY - rect.top) / scale;
+            } else {
+                offset.x = (e.clientX - rect.left) / scale;
+                offset.y = (e.clientY - rect.top) / scale;
+            }
+            
+            e.preventDefault();
+        }
+
+        function dragNode(e) {
+            if (!draggedElement) return;
+            
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            let clientX, clientY;
+            
+            if (e.type === 'touchmove') {
+                const touch = e.touches[0];
+                clientX = touch.clientX;
+                clientY = touch.clientY;
+            } else {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+            
+            const x = (clientX - canvasRect.left) / scale - offset.x;
+            const y = (clientY - canvasRect.top) / scale - offset.y;
+            
+            // Keep within bounds
+            const maxX = 3000 - draggedElement.offsetWidth;
+            const maxY = 2000 - draggedElement.offsetHeight;
+            
+            draggedElement.style.left = Math.max(0, Math.min(x, maxX)) + 'px';
+            draggedElement.style.top = Math.max(0, Math.min(y, maxY)) + 'px';
+            
+            updateConnections();
+        }
+
+        function endNodeDrag() {
+            if (draggedElement) {
+                draggedElement.classList.remove('dragging');
+                draggedElement = null;
+            }
+        }
+
+        function initializeCanvasPanning() {
+            const canvasWrapper = document.getElementById('canvasWrapper');
+            const canvas = document.getElementById('canvas');
+            
+            let lastPanPoint = { x: 0, y: 0 };
+            
+            canvasWrapper.addEventListener('mousedown', (e) => {
+                if (e.target === canvasWrapper || e.target === canvas) {
+                    isDraggingCanvas = true;
+                    lastPanPoint.x = e.clientX;
+                    lastPanPoint.y = e.clientY;
+                    canvas.style.cursor = 'grabbing';
+                }
+            });
+            
+            document.addEventListener('mousemove', (e) => {
+                if (isDraggingCanvas && !draggedElement) {
+                    const deltaX = e.clientX - lastPanPoint.x;
+                    const deltaY = e.clientY - lastPanPoint.y;
+                    
+                    canvasOffset.x += deltaX;
+                    canvasOffset.y += deltaY;
+                    
+                    updateCanvasTransform();
+                    
+                    lastPanPoint.x = e.clientX;
+                    lastPanPoint.y = e.clientY;
+                }
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isDraggingCanvas = false;
+                canvas.style.cursor = 'grab';
+            });
+        }
+
+        function initializeZoom() {
+            const canvasWrapper = document.getElementById('canvasWrapper');
+            
+            canvasWrapper.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? 0.9 : 1.1;
+                scale = Math.max(0.3, Math.min(2, scale * delta));
+                updateCanvasTransform();
+            });
+        }
+
+        function updateCanvasTransform() {
+            const canvas = document.getElementById('canvas');
+            canvas.style.transform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${scale})`;
+            
+            // Update SVG size to match scaled canvas
+            const svg = document.getElementById('connectionsSvg');
+            svg.style.transform = canvas.style.transform;
+        }
+
+        function updateConnections() {
+            if (!showConnections) return;
+            
+            const svg = document.getElementById('connectionsSvg');
+            
+            // Clear existing paths
+            const existingPaths = svg.querySelectorAll('path');
+            existingPaths.forEach(path => path.remove());
+            
+            connections.forEach(conn => {
+                const fromElement = document.querySelector(`[data-id="${conn.from}"]`);
+                const toElement = document.querySelector(`[data-id="${conn.to}"]`);
+                
+                if (fromElement && toElement) {
+                    const fromRect = fromElement.getBoundingClientRect();
+                    const toRect = toElement.getBoundingClientRect();
+                    const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+                    
+                    // Calculate centers relative to canvas
+                    const fromX = (fromRect.left - canvasRect.left + fromRect.width / 2) / scale;
+                    const fromY = (fromRect.top - canvasRect.top + fromRect.height / 2) / scale;
+                    const toX = (toRect.left - canvasRect.left + toRect.width / 2) / scale;
+                    const toY = (toRect.top - canvasRect.top + toRect.height / 2) / scale;
+                    
+                    // Create curved path for better visual appeal
+                    const controlPointOffset = Math.min(Math.abs(toX - fromX), Math.abs(toY - fromY)) * 0.3;
+                    const controlX1 = fromX + (toX - fromX) * 0.3 + controlPointOffset * (Math.random() - 0.5);
+                    const controlY1 = fromY + (toY - fromY) * 0.3;
+                    const controlX2 = fromX + (toX - fromX) * 0.7 + controlPointOffset * (Math.random() - 0.5);
+                    const controlY2 = toY - (toY - fromY) * 0.3;
+                    
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', `M ${fromX} ${fromY} C ${controlX1} ${controlY1}, ${controlX2} ${controlY2}, ${toX} ${toY}`);
+                    path.setAttribute('class', `connection-line ${conn.type}`);
+                    path.setAttribute('marker-end', `url(#arrowhead-${conn.type.split('-')[0]})`);
+                    
+                    svg.appendChild(path);
+                }
+            });
+        }
+
+        function initializeNodeInfo() {
+            const nodes = document.querySelectorAll('.node');
+            
+            nodes.forEach(node => {
+                node.addEventListener('click', (e) => {
+                    if (draggedElement) return; // Don't show info when dragging
+                    
+                    const nodeId = node.getAttribute('data-id');
+                    const info = componentInfo[nodeId];
+                    
+                    if (info) {
+                        const infoPanel = document.querySelector('.info-panel');
+                        infoPanel.innerHTML = `
+                            <div class="info-title">${info.title}</div>
+                            <div class="info-text">${info.details}</div>
+                        `;
+                    }
+                });
+            });
+        }
+
+        // Control functions
+        function resetLayout() {
+            const positions = {
+                'internet': { top: 50, left: 400 },
+                'igw': { top: 150, left: 420 },
+                'vpc': { top: 250, left: 350 },
+                'public-subnet-1': { top: 350, left: 200 },
+                'public-subnet-2': { top: 350, left: 500 },
+                'alb': { top: 450, left: 330 },
+                'nat-1': { top: 450, left: 150 },
+                'nat-2': { top: 450, left: 550 },
+                'private-subnet-1': { top: 550, left: 150 },
+                'private-subnet-2': { top: 550, left: 500 },
+                'ecs-cluster': { top: 650, left: 300 },
+                'backend': { top: 750, left: 100 },
+                'ai-service': { top: 750, left: 250 },
+                'frontend': { top: 750, left: 400 },
+                'redis': { top: 880, left: 150 },
+                'qdrant': { top: 880, left: 300 },
+                'efs': { top: 880, left: 450 },
+                'ecr': { top: 150, left: 700 },
+                'iam': { top: 250, left: 750 },
+                'cloudwatch': { top: 350, left: 720 },
+                'mongodb': { top: 750, left: 600 },
+                'ai-apis': { top: 650, left: 650 }
+            };
+            
+            const nodes = document.querySelectorAll('.node');
+            nodes.forEach(node => {
+                const id = node.getAttribute('data-id');
+                if (positions[id]) {
+                    node.style.top = positions[id].top + 'px';
+                    node.style.left = positions[id].left + 'px';
+                }
+            });
+            
+            setTimeout(updateConnections, 100);
+        }
+
+        function toggleConnections() {
+            showConnections = !showConnections;
+            const svg = document.getElementById('connectionsSvg');
+            svg.style.display = showConnections ? 'block' : 'none';
+            
+            if (showConnections) {
+                updateConnections();
+            }
+        }
+
+        function autoArrange() {
+            // Simple layered arrangement
+            const layers = [
+                { y: 50, nodes: ['internet'] },
+                { y: 150, nodes: ['igw', 'ecr'] },
+                { y: 250, nodes: ['vpc', 'iam'] },
+                { y: 350, nodes: ['public-subnet-1', 'public-subnet-2', 'cloudwatch'] },
+                { y: 450, nodes: ['alb', 'nat-1', 'nat-2'] },
+                { y: 550, nodes: ['private-subnet-1', 'private-subnet-2'] },
+                { y: 650, nodes: ['ecs-cluster', 'ai-apis'] },
+                { y: 750, nodes: ['backend', 'ai-service', 'frontend', 'mongodb'] },
+                { y: 880, nodes: ['redis', 'qdrant', 'efs'] }
+            ];
+            
+            layers.forEach(layer => {
+                const nodeCount = layer.nodes.length;
+                const startX = 100;
+                const spacing = 150;
+                
+                layer.nodes.forEach((nodeId, index) => {
+                    const node = document.querySelector(`[data-id="${nodeId}"]`);
+                    if (node) {
+                        node.style.top = layer.y + 'px';
+                        node.style.left = (startX + index * spacing) + 'px';
+                    }
+                });
+            });
+            
+            setTimeout(updateConnections, 100);
+        }
+
+        function showAllConnections() {
+            showConnections = true;
+            const svg = document.getElementById('connectionsSvg');
+            svg.style.display = 'block';
+            updateConnections();
+        }
+
+        function zoomIn() {
+            scale = Math.min(2, scale * 1.2);
+            updateCanvasTransform();
+        }
+
+        function zoomOut() {
+            scale = Math.max(0.3, scale / 1.2);
+            updateCanvasTransform();
+        }
+
+        function resetZoom() {
+            scale = 1;
+            canvasOffset = { x: 0, y: 0 };
+            updateCanvasTransform();
+        }
+
+        // Initialize everything when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSystem();
+            
+            // Update connections when window is resized
+            window.addEventListener('resize', () => {
+                setTimeout(updateConnections, 100);
+            });
+        });
+    </script>
+</body>
+</html>

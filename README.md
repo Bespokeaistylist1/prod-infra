@@ -134,14 +134,33 @@ terraform destroy
 ├── variables.tf            # Variable definitions
 ├── outputs.tf              # Output definitions
 ├── terraform.tfvars        # Variable values
+├── deploy.sh              # Automated deployment script
+├── docs/                  # 📚 Documentation directory
+│   ├── README.md          # Documentation guide
+│   ├── deployment-diagram.html  # 🎨 Interactive architecture diagram
+│   └── architecture-guide.md   # 📋 Detailed architecture guide
 ├── modules/
 │   ├── vpc/               # VPC module
 │   ├── security-groups/   # Security groups module
 │   ├── iam/              # IAM roles module
+│   ├── ecr/              # ECR repositories module
 │   ├── alb/              # Application Load Balancer module
 │   └── ecs/              # ECS cluster and services module
 └── README.md             # This file
 ```
+
+## Documentation
+
+📚 **Comprehensive documentation is available in the `docs/` directory:**
+
+- **[📖 Documentation Guide](./docs/README.md)** - Complete guide to all documentation
+- **[🎨 Interactive Architecture Diagram](./docs/deployment-diagram.html)** - Drag-and-drop visual infrastructure overview
+- **[📋 Architecture Guide](./docs/architecture-guide.md)** - Detailed technical architecture documentation
+
+### Quick Start with Documentation
+1. Open `docs/deployment-diagram.html` in your browser for an interactive overview
+2. Use the architecture guide for detailed technical information
+3. Refer to the documentation README for navigation help
 
 ## Support
 
